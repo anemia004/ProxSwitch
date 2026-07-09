@@ -14,9 +14,49 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Ensure manifest files exist (create if missing)
+      # ------------------------------------------------------------
+      # 1. Create every file needed for the tile module
+      # ------------------------------------------------------------
+      - name: Create tile module files
         run: |
-          mkdir -p tile/src/main
+          mkdir -p tile/src/main/java/com/anemia004/proxswitch
+          mkdir -p tile/src/main/res/drawable
+
+          # --- Tile build.gradle ---
+          cat > tile/build.gradle << 'GRADLE'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          android {
+              namespace 'com.anemia004.proxswitch'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.anemia004.proxswitch"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          }
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.10.1'
+          }
+          GRADLE
+
+          # --- Tile AndroidManifest.xml ---
           cat > tile/src/main/AndroidManifest.xml << 'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -53,37 +93,122 @@ jobs:
           </manifest>
           MANIFEST
 
-          mkdir -p xposed/src/main
-          cat > xposed/src/main/AndroidManifest.xml << 'MANIFEST'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.anemia004.proxswitch.xposed">
+          # --- RegisterActivity.kt ---
+          cat > tile/src/main/java/com/anemia004/proxswitch/RegisterActivity.kt << 'KOTLIN'
+          package com.anemia004.proxswitch
 
-              <application
-                  android:allowBackup="true"
-                  android:icon="@drawable/ic_prox_tile"
-                  android:label="ProxSwitch Xposed"
-                  android:supportsRtl="true">
+          import android.app.Activity
+          import android.os.Bundle
 
-                  <meta-data
-                      android:name="xposedmodule"
-                      android:value="true" />
-                  <meta-data
-                      android:name="xposeddescription"
-                      android:value="Proximity sensor toggle (persistent across reboots)" />
-                  <meta-data
-                      android:name="xposedminversion"
-                      android:value="82" />
-              </application>
-          </manifest>
-          MANIFEST
+          class RegisterActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  finish()
+              }
+          }
+          KOTLIN
 
-      - name: Fix Xposed API dependency
+          # --- ProxSwitchTileService.kt ---
+          cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt << 'KOTLIN'
+          package com.anemia004.proxswitch
+
+          import android.service.quicksettings.Tile
+          import android.service.quicksettings.TileService
+          import java.io.File
+
+          class ProxSwitchTileService : TileService() {
+
+              companion object {
+                  private const val STATE_FILE = "/data/local/proxswitch_state"
+              }
+
+              override fun onTileAdded() {
+                  super.onTileAdded()
+                  refreshTile()
+              }
+
+              override fun onStartListening() {
+                  super.onStartListening()
+                  refreshTile()
+              }
+
+              override fun onClick() {
+                  super.onClick()
+                  if (isSecure) {
+                      unlockAndRun { toggle() }
+                  } else {
+                      toggle()
+                  }
+              }
+
+              private fun toggle() {
+                  Thread {
+                      val currentlyDisabled = readState()
+                      val newState = !currentlyDisabled
+                      writeState(newState)
+                      refreshTile()
+                  }.start()
+              }
+
+              private fun readState(): Boolean {
+                  val f = File(STATE_FILE)
+                  return f.exists() && f.readText().trim() == "1"
+              }
+
+              private fun writeState(disabled: Boolean) {
+                  val value = if (disabled) "1" else "0"
+                  execRoot("echo $value > $STATE_FILE")
+                  execRoot("chmod 644 $STATE_FILE")
+              }
+
+              private fun refreshTile() {
+                  val disabled = readState()
+                  tile.state = if (disabled) Tile.STATE_ACTIVE
+                  else Tile.STATE_INACTIVE
+                  tile.label = if (disabled) "Prox OFF" else "Prox ON"
+                  tile.updateTile()
+              }
+
+              private fun execRoot(cmd: String) {
+                  try {
+                      val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+                      p.waitFor()
+                  } catch (_: Exception) {}
+              }
+          }
+          KOTLIN
+
+          # --- Tile icon ---
+          cat > tile/src/main/res/drawable/ic_prox_tile.xml << 'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24"
+              android:tint="#FFFFFF">
+              <path
+                  android:fillColor="@android:color/white"
+                  android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8zM11,7h2v6h-2zM11,15h2v2h-2z"/>
+          </vector>
+          XML
+
+      # ------------------------------------------------------------
+      # 2. Create every file needed for the Xposed module
+      # ------------------------------------------------------------
+      - name: Create Xposed module files
         run: |
+          mkdir -p xposed/src/main/java/com/anemia004/proxswitch/xposed
+          mkdir -p xposed/src/main/assets
+          mkdir -p xposed/src/main/res/drawable
           mkdir -p xposed/libs
+
+          # --- Download valid Xposed API jar ---
           echo "Downloading Xposed API jar from JitPack..."
-          curl -L -o xposed/libs/api-82.jar https://jitpack.io/com/github/rovo89/XposedBridge/api/82/api-82.jar
-          file xposed/libs/api-82.jar
+          curl -sSfL -o xposed/libs/api-82.jar https://jitpack.io/com/github/rovo89/XposedBridge/api/82/api-82.jar
+          # Verify it's a valid zip
+          unzip -t xposed/libs/api-82.jar > /dev/null || { echo "Invalid jar!"; exit 1; }
+
+          # --- Xposed build.gradle ---
           cat > xposed/build.gradle << 'GRADLE'
           plugins {
               id 'com.android.application'
@@ -109,41 +234,132 @@ jobs:
           }
           GRADLE
 
-      - name: Fix Tile module JVM compatibility
-        run: |
-          cat > tile/build.gradle << 'GRADLE'
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
-          android {
-              namespace 'com.anemia004.proxswitch'
-              compileSdk 34
-              defaultConfig {
-                  applicationId "com.anemia004.proxswitch"
-                  minSdk 21
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
+          # --- Xposed AndroidManifest.xml ---
+          cat > xposed/src/main/AndroidManifest.xml << 'MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.anemia004.proxswitch.xposed">
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_prox_tile"
+                  android:label="ProxSwitch Xposed"
+                  android:supportsRtl="true">
+
+                  <meta-data
+                      android:name="xposedmodule"
+                      android:value="true" />
+                  <meta-data
+                      android:name="xposeddescription"
+                      android:value="Proximity sensor toggle (persistent across reboots)" />
+                  <meta-data
+                      android:name="xposedminversion"
+                      android:value="82" />
+              </application>
+          </manifest>
+          MANIFEST
+
+          # --- xposed_init ---
+          echo "com.anemia004.proxswitch.xposed.ProxSwitchHook" > xposed/src/main/assets/xposed_init
+
+          # --- ProxSwitchHook.java ---
+          cat > xposed/src/main/java/com/anemia004/proxswitch/xposed/ProxSwitchHook.java << 'JAVA'
+          package com.anemia004.proxswitch.xposed;
+
+          import android.hardware.Sensor;
+          import android.hardware.SensorEventListener;
+
+          import java.io.BufferedReader;
+          import java.io.File;
+          import java.io.FileReader;
+
+          import de.robv.android.xposed.IXposedHookLoadPackage;
+          import de.robv.android.xposed.XC_MethodHook;
+          import de.robv.android.xposed.XposedHelpers;
+          import de.robv.android.xposed.callbacks.XC_LoadPackage;
+
+          public class ProxSwitchHook implements IXposedHookLoadPackage {
+
+              private static final String STATE_FILE = "/data/local/proxswitch_state";
+
+              @Override
+              public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
+                  if (!lpparam.packageName.equals("android")) return;
+
+                  XposedHelpers.findAndHookMethod(
+                      "android.hardware.SystemSensorManager",
+                      lpparam.classLoader,
+                      "registerListenerImpl",
+                      SensorEventListener.class,
+                      Sensor.class,
+                      int.class,
+                      android.os.Handler.class,
+                      int.class,
+                      int.class,
+                      new XC_MethodHook() {
+                          @Override
+                          protected void beforeHookedMethod(MethodHookParam param) {
+                              if (isProxDisabled()) {
+                                  Sensor sensor = (Sensor) param.args[1];
+                                  if (sensor.getType() == Sensor.TYPE_PROXIMITY) {
+                                      param.setResult(null);
+                                  }
+                              }
+                          }
+                      }
+                  );
               }
-              buildTypes {
-                  release {
-                      minifyEnabled false
+
+              private boolean isProxDisabled() {
+                  try {
+                      File f = new File(STATE_FILE);
+                      if (!f.exists()) return false;
+                      BufferedReader br = new BufferedReader(new FileReader(f));
+                      String line = br.readLine();
+                      br.close();
+                      return "1".equals(line);
+                  } catch (Exception ignored) {
+                      return false;
                   }
               }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
           }
-          dependencies {
-              implementation 'androidx.core:core-ktx:1.10.1'
+          JAVA
+
+          # --- Xposed icon ---
+          cat > xposed/src/main/res/drawable/ic_prox_tile.xml << 'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp"
+              android:height="24dp"
+              android:viewportWidth="24"
+              android:viewportHeight="24"
+              android:tint="#FFFFFF">
+              <path
+                  android:fillColor="@android:color/white"
+                  android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8zM11,7h2v6h-2zM11,15h2v2h-2z"/>
+          </vector>
+          XML
+
+      # ------------------------------------------------------------
+      # 3. Ensure root Gradle files exist
+      # ------------------------------------------------------------
+      - name: Ensure root Gradle files
+        run: |
+          cat > settings.gradle << 'GRADLE'
+          rootProject.name = "ProxSwitch"
+          include ':tile'
+          include ':xposed'
+          GRADLE
+
+          cat > build.gradle << 'GRADLE'
+          plugins {
+              id 'com.android.application' version '8.2.0' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.20' apply false
           }
           GRADLE
 
+      # ------------------------------------------------------------
+      # 4. Build, sign, upload
+      # ------------------------------------------------------------
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -162,8 +378,8 @@ jobs:
         with:
           gradle-version: 8.5
 
-      - name: Build both modules
-        run: gradle assembleRelease
+      - name: Build both modules (verbose)
+        run: gradle assembleRelease --stacktrace
 
       - name: Decode keystore
         env:
