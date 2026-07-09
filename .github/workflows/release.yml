@@ -31,8 +31,7 @@ jobs:
             mkdir -p tile/src/main
             cat > tile/src/main/AndroidManifest.xml << 'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.anemia004.proxswitch">
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
               <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
 
@@ -47,7 +46,8 @@ jobs:
                       android:name=".ProxSwitchTileService"
                       android:icon="@drawable/ic_prox_tile"
                       android:label="ProxSwitch"
-                      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+                      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+                      android:exported="true">
                       <intent-filter>
                           <action android:name="android.service.quicksettings.action.QS_TILE" />
                       </intent-filter>
@@ -165,3 +165,4 @@ jobs:
         with:
           name: ProxSwitch-Xposed-signed
           path: xposed-signed.apk
+          
