@@ -83,9 +83,7 @@ jobs:
           mkdir -p xposed/libs
           echo "Downloading Xposed API jar from JitPack..."
           curl -L -o xposed/libs/api-82.jar https://jitpack.io/com/github/rovo89/XposedBridge/api/82/api-82.jar
-          # verify it's a valid zip
           file xposed/libs/api-82.jar
-          # update build.gradle to use local jar
           cat > xposed/build.gradle << 'GRADLE'
           plugins {
               id 'com.android.application'
@@ -108,6 +106,41 @@ jobs:
           }
           dependencies {
               compileOnly files('libs/api-82.jar')
+          }
+          GRADLE
+
+      - name: Fix Tile module JVM compatibility
+        run: |
+          cat > tile/build.gradle << 'GRADLE'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          android {
+              namespace 'com.anemia004.proxswitch'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.anemia004.proxswitch"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          }
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.10.1'
           }
           GRADLE
 
