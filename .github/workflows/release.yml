@@ -14,6 +14,92 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug - list repository structure
+        run: |
+          echo "=== Root ==="
+          ls -la
+          echo "=== tile/ ==="
+          ls -laR tile/ || echo "tile/ not found"
+          echo "=== xposed/ ==="
+          ls -laR xposed/ || echo "xposed/ not found"
+
+      - name: Ensure manifest files exist
+        run: |
+          # Create tile manifest if missing
+          if [ ! -f tile/src/main/AndroidManifest.xml ]; then
+            echo "Creating tile/src/main/AndroidManifest.xml"
+            mkdir -p tile/src/main
+            cat > tile/src/main/AndroidManifest.xml << 'MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.anemia004.proxswitch">
+
+              <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_prox_tile"
+                  android:label="ProxSwitch"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.Transparent">
+
+                  <service
+                      android:name=".ProxSwitchTileService"
+                      android:icon="@drawable/ic_prox_tile"
+                      android:label="ProxSwitch"
+                      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+                      <intent-filter>
+                          <action android:name="android.service.quicksettings.action.QS_TILE" />
+                      </intent-filter>
+                  </service>
+
+                  <activity
+                      android:name=".RegisterActivity"
+                      android:exported="true"
+                      android:excludeFromRecents="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          MANIFEST
+          else
+            echo "tile manifest already exists"
+          fi
+
+          # Create xposed manifest if missing
+          if [ ! -f xposed/src/main/AndroidManifest.xml ]; then
+            echo "Creating xposed/src/main/AndroidManifest.xml"
+            mkdir -p xposed/src/main
+            cat > xposed/src/main/AndroidManifest.xml << 'MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.anemia004.proxswitch.xposed">
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_prox_tile"
+                  android:label="ProxSwitch Xposed"
+                  android:supportsRtl="true">
+
+                  <meta-data
+                      android:name="xposedmodule"
+                      android:value="true" />
+                  <meta-data
+                      android:name="xposeddescription"
+                      android:value="Proximity sensor toggle (persistent across reboots)" />
+                  <meta-data
+                      android:name="xposedminversion"
+                      android:value="82" />
+              </application>
+          </manifest>
+          MANIFEST
+          else
+            echo "xposed manifest already exists"
+          fi
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
