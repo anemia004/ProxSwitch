@@ -14,22 +14,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug - list repository structure
+      - name: Ensure manifest files exist (create if missing)
         run: |
-          echo "=== Root ==="
-          ls -la
-          echo "=== tile/ ==="
-          ls -laR tile/ || echo "tile/ not found"
-          echo "=== xposed/ ==="
-          ls -laR xposed/ || echo "xposed/ not found"
-
-      - name: Ensure manifest files exist
-        run: |
-          # Create tile manifest if missing
-          if [ ! -f tile/src/main/AndroidManifest.xml ]; then
-            echo "Creating tile/src/main/AndroidManifest.xml"
-            mkdir -p tile/src/main
-            cat > tile/src/main/AndroidManifest.xml << 'MANIFEST'
+          mkdir -p tile/src/main
+          cat > tile/src/main/AndroidManifest.xml << 'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -39,8 +27,7 @@ jobs:
                   android:allowBackup="true"
                   android:icon="@drawable/ic_prox_tile"
                   android:label="ProxSwitch"
-                  android:supportsRtl="true"
-                  android:theme="@style/Theme.AppCompat.Transparent">
+                  android:supportsRtl="true">
 
                   <service
                       android:name=".ProxSwitchTileService"
@@ -65,15 +52,9 @@ jobs:
               </application>
           </manifest>
           MANIFEST
-          else
-            echo "tile manifest already exists"
-          fi
 
-          # Create xposed manifest if missing
-          if [ ! -f xposed/src/main/AndroidManifest.xml ]; then
-            echo "Creating xposed/src/main/AndroidManifest.xml"
-            mkdir -p xposed/src/main
-            cat > xposed/src/main/AndroidManifest.xml << 'MANIFEST'
+          mkdir -p xposed/src/main
+          cat > xposed/src/main/AndroidManifest.xml << 'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               package="com.anemia004.proxswitch.xposed">
@@ -96,16 +77,15 @@ jobs:
               </application>
           </manifest>
           MANIFEST
-          else
-            echo "xposed manifest already exists"
-          fi
 
       - name: Fix Xposed API dependency
         run: |
           mkdir -p xposed/libs
-          echo "Downloading Xposed API jar from Rovo89's XposedBridge..."
-          curl -L -o xposed/libs/api-82.jar https://raw.githubusercontent.com/rovo89/XposedBridge/art/app/libs/api-82.jar
-          # Update xposed/build.gradle to use local jar
+          echo "Downloading Xposed API jar from JitPack..."
+          curl -L -o xposed/libs/api-82.jar https://jitpack.io/com/github/rovo89/XposedBridge/api/82/api-82.jar
+          # verify it's a valid zip
+          file xposed/libs/api-82.jar
+          # update build.gradle to use local jar
           cat > xposed/build.gradle << 'GRADLE'
           plugins {
               id 'com.android.application'
