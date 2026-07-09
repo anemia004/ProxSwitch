@@ -103,8 +103,8 @@ jobs:
       - name: Fix Xposed API dependency
         run: |
           mkdir -p xposed/libs
-          echo "Downloading Xposed API jar..."
-          curl -L -o xposed/libs/api-82.jar https://repo.xposed.info/module/de/robv/android/xposed/api/82/api-82.jar
+          echo "Downloading Xposed API jar from Rovo89's XposedBridge..."
+          curl -L -o xposed/libs/api-82.jar https://raw.githubusercontent.com/rovo89/XposedBridge/art/app/libs/api-82.jar
           # Update xposed/build.gradle to use local jar
           cat > xposed/build.gradle << 'GRADLE'
           plugins {
