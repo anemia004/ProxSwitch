@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.anemia004.proxswitch.xposed">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_prox_tile"
+        android:label="ProxSwitch Xposed"
+        android:supportsRtl="true">
+
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Proximity sensor toggle (persistent across reboots)" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="82" />
+    </application>
+</manifest>
