@@ -52,7 +52,6 @@ jobs:
           }
           GRADLE
 
-          # Tile AndroidManifest.xml (with system theme, no crash)
           cat > tile/src/main/AndroidManifest.xml <<'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -86,7 +85,6 @@ jobs:
           </manifest>
           MANIFEST
 
-          # RegisterActivity.kt
           cat > tile/src/main/java/com/anemia004/proxswitch/RegisterActivity.kt <<'KOTLIN'
           package com.anemia004.proxswitch
           import android.app.Activity
@@ -99,7 +97,7 @@ jobs:
           }
           KOTLIN
 
-          # ProxSwitchTileService.kt – ROBUST VERSION (null-safe, proper threading)
+          # ProxSwitchTileService.kt – FIXED (no file reads, root writes only)
           cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt <<'KOTLIN'
           package com.anemia004.proxswitch
 
@@ -107,7 +105,6 @@ jobs:
           import android.os.Looper
           import android.service.quicksettings.Tile
           import android.service.quicksettings.TileService
-          import java.io.File
 
           class ProxSwitchTileService : TileService() {
 
@@ -115,6 +112,7 @@ jobs:
                   private const val STATE_FILE = "/data/local/proxswitch_state"
               }
 
+              private var isDisabled = false
               private val handler = Handler(Looper.getMainLooper())
 
               override fun onTileAdded() {
@@ -139,40 +137,23 @@ jobs:
               private fun toggle() {
                   Thread {
                       try {
-                          val currentlyDisabled = readState()
-                          writeState(!currentlyDisabled)
+                          isDisabled = !isDisabled
+                          val value = if (isDisabled) "1" else "0"
+                          execRoot("echo $value > $STATE_FILE")
+                          execRoot("chmod 644 $STATE_FILE")
                           handler.post { refreshTile() }
                       } catch (e: Exception) {
                           e.printStackTrace()
+                          isDisabled = !isDisabled
                       }
                   }.start()
               }
 
-              private fun readState(): Boolean {
-                  return try {
-                      val f = File(STATE_FILE)
-                      f.exists() && f.readText().trim() == "1"
-                  } catch (e: Exception) {
-                      false
-                  }
-              }
-
-              private fun writeState(disabled: Boolean) {
-                  try {
-                      val value = if (disabled) "1" else "0"
-                      execRoot("echo $value > $STATE_FILE")
-                      execRoot("chmod 644 $STATE_FILE")
-                  } catch (e: Exception) {
-                      e.printStackTrace()
-                  }
-              }
-
               private fun refreshTile() {
                   try {
-                      val t = qsTile ?: return   // safe: bail out if tile not ready
-                      val disabled = readState()
-                      t.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-                      t.label = if (disabled) "Prox OFF" else "Prox ON"
+                      val t = qsTile ?: return
+                      t.state = if (isDisabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+                      t.label = if (isDisabled) "Prox OFF" else "Prox ON"
                       t.updateTile()
                   } catch (e: Exception) {
                       e.printStackTrace()
@@ -190,7 +171,6 @@ jobs:
           }
           KOTLIN
 
-          # tile icon
           cat > tile/src/main/res/drawable/ic_prox_tile.xml <<'XML'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="24dp" android:height="24dp"
@@ -297,6 +277,7 @@ jobs:
 
           echo "com.anemia004.proxswitch.xposed.ProxSwitchHook" > xposed/src/main/assets/xposed_init
 
+          # ProxSwitchHook.java – FIXED (null-safe package check)
           cat > xposed/src/main/java/com/anemia004/proxswitch/xposed/ProxSwitchHook.java <<'JAVA'
           package com.anemia004.proxswitch.xposed;
           import android.hardware.Sensor;
@@ -312,7 +293,10 @@ jobs:
               private static final String STATE_FILE = "/data/local/proxswitch_state";
               @Override
               public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
+                  // Skip packages with null name (system internals)
+                  if (lpparam.packageName == null) return;
                   if (!lpparam.packageName.equals("android")) return;
+
                   XposedHelpers.findAndHookMethod(
                       "android.hardware.SystemSensorManager",
                       lpparam.classLoader,
@@ -466,15 +450,19 @@ jobs:
           name: "ProxSwitch ${{ github.ref_name }}"
           tag_name: ${{ github.ref_name }}
           body: |
-            ProxSwitch – Xposed-powered proximity sensor toggle.
+            ProxSwitch – Xposed-powered proximity sensor toggle (bug‑fixed).
 
             📦 **Tile APK** – Quick Settings toggle (requires root).  
             📦 **Xposed Module APK** – Hooks into the framework to block the proximity sensor persistently.
 
+            **Fixes:**  
+            - Tile app no longer reads the flag file (no more `Permission denied` crashes).  
+            - Xposed module handles null package names (no more `NullPointerException`).
+
             **Compatibility:** Android 5.0+ (including Android 7), classic Xposed Framework.
 
             **How it works:**  
-            - Tile writes `1` or `0` to `/data/local/proxswitch_state`.  
+            - Tile writes `1` or `0` to `/data/local/proxswitch_state` via root.  
             - Xposed module reads that flag and blocks `Sensor.TYPE_PROXIMITY` when disabled.  
             - State survives reboots.
 
@@ -482,8 +470,6 @@ jobs:
             1. Install the Xposed module, activate in Xposed Installer, reboot.  
             2. Install the tile app, open once, add the tile to Quick Settings.  
             3. Tap to toggle – grant root when prompted.
-
-            Built from source on GitHub Actions. No external dependencies, no telemetry.
           draft: false
           prerelease: false
         env:
