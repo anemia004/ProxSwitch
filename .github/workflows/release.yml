@@ -14,165 +14,160 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------
-      # 1. Create tile module source files (if not already present)
-      # ------------------------------------------------------------
+      # =================================================================
+      # 1. Create every file needed for the tile module
+      # =================================================================
       - name: Create tile module files
         run: |
+          set -e
           mkdir -p tile/src/main/java/com/anemia004/proxswitch
           mkdir -p tile/src/main/res/drawable
 
-          if [ ! -f tile/build.gradle ]; then
-            cat > tile/build.gradle << 'GRADLE'
-            plugins {
-                id 'com.android.application'
-                id 'org.jetbrains.kotlin.android'
-            }
-            android {
-                namespace 'com.anemia004.proxswitch'
-                compileSdk 34
-                defaultConfig {
-                    applicationId "com.anemia004.proxswitch"
-                    minSdk 21
-                    targetSdk 34
-                    versionCode 1
-                    versionName "1.0"
-                }
-                buildTypes { release { minifyEnabled false } }
-                compileOptions {
-                    sourceCompatibility JavaVersion.VERSION_17
-                    targetCompatibility JavaVersion.VERSION_17
-                }
-                kotlinOptions { jvmTarget = '17' }
-            }
-            dependencies {
-                implementation 'androidx.core:core-ktx:1.10.1'
-            }
-            GRADLE
-          fi
+          # tile/build.gradle
+          cat > tile/build.gradle <<'GRADLE'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          android {
+              namespace 'com.anemia004.proxswitch'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.anemia004.proxswitch"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes { release { minifyEnabled false } }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = '17' }
+          }
+          dependencies {
+              implementation 'androidx.core:core-ktx:1.10.1'
+          }
+          GRADLE
 
-          if [ ! -f tile/src/main/AndroidManifest.xml ]; then
-            cat > tile/src/main/AndroidManifest.xml << 'MANIFEST'
-            <?xml version="1.0" encoding="utf-8"?>
-            <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-                <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
-                <application
-                    android:allowBackup="true"
-                    android:icon="@drawable/ic_prox_tile"
-                    android:label="ProxSwitch"
-                    android:supportsRtl="true">
-                    <service
-                        android:name=".ProxSwitchTileService"
-                        android:icon="@drawable/ic_prox_tile"
-                        android:label="ProxSwitch"
-                        android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
-                        android:exported="true">
-                        <intent-filter>
-                            <action android:name="android.service.quicksettings.action.QS_TILE" />
-                        </intent-filter>
-                    </service>
-                    <activity
-                        android:name=".RegisterActivity"
-                        android:exported="true"
-                        android:excludeFromRecents="true">
-                        <intent-filter>
-                            <action android:name="android.intent.action.MAIN" />
-                            <category android:name="android.intent.category.LAUNCHER" />
-                        </intent-filter>
-                    </activity>
-                </application>
-            </manifest>
-            MANIFEST
-          fi
+          # tile/src/main/AndroidManifest.xml
+          cat > tile/src/main/AndroidManifest.xml <<'MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_prox_tile"
+                  android:label="ProxSwitch"
+                  android:supportsRtl="true">
+                  <service
+                      android:name=".ProxSwitchTileService"
+                      android:icon="@drawable/ic_prox_tile"
+                      android:label="ProxSwitch"
+                      android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.service.quicksettings.action.QS_TILE" />
+                      </intent-filter>
+                  </service>
+                  <activity
+                      android:name=".RegisterActivity"
+                      android:exported="true"
+                      android:excludeFromRecents="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          MANIFEST
 
-          if [ ! -f tile/src/main/java/com/anemia004/proxswitch/RegisterActivity.kt ]; then
-            cat > tile/src/main/java/com/anemia004/proxswitch/RegisterActivity.kt << 'KOTLIN'
-            package com.anemia004.proxswitch
-            import android.app.Activity
-            import android.os.Bundle
-            class RegisterActivity : Activity() {
-                override fun onCreate(savedInstanceState: Bundle?) {
-                    super.onCreate(savedInstanceState)
-                    finish()
-                }
-            }
-            KOTLIN
-          fi
+          # RegisterActivity.kt
+          cat > tile/src/main/java/com/anemia004/proxswitch/RegisterActivity.kt <<'KOTLIN'
+          package com.anemia004.proxswitch
+          import android.app.Activity
+          import android.os.Bundle
+          class RegisterActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  finish()
+              }
+          }
+          KOTLIN
 
-          if [ ! -f tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt ]; then
-            cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt << 'KOTLIN'
-            package com.anemia004.proxswitch
-            import android.service.quicksettings.Tile
-            import android.service.quicksettings.TileService
-            import java.io.File
-            class ProxSwitchTileService : TileService() {
-                companion object { private const val STATE_FILE = "/data/local/proxswitch_state" }
-                override fun onTileAdded() { super.onTileAdded(); refreshTile() }
-                override fun onStartListening() { super.onStartListening(); refreshTile() }
-                override fun onClick() {
-                    super.onClick()
-                    if (isSecure) unlockAndRun { toggle() } else toggle()
-                }
-                private fun toggle() {
-                    Thread {
-                        val disabled = readState()
-                        writeState(!disabled)
-                        refreshTile()
-                    }.start()
-                }
-                private fun readState(): Boolean {
-                    val f = File(STATE_FILE)
-                    return f.exists() && f.readText().trim() == "1"
-                }
-                private fun writeState(disabled: Boolean) {
-                    val value = if (disabled) "1" else "0"
-                    execRoot("echo $value > $STATE_FILE")
-                    execRoot("chmod 644 $STATE_FILE")
-                }
-                private fun refreshTile() {
-                    val disabled = readState()
-                    tile.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-                    tile.label = if (disabled) "Prox OFF" else "Prox ON"
-                    tile.updateTile()
-                }
-                private fun execRoot(cmd: String) {
-                    try {
-                        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-                        p.waitFor()
-                    } catch (_: Exception) {}
-                }
-            }
-            KOTLIN
-          fi
+          # ProxSwitchTileService.kt
+          cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt <<'KOTLIN'
+          package com.anemia004.proxswitch
+          import android.service.quicksettings.Tile
+          import android.service.quicksettings.TileService
+          import java.io.File
+          class ProxSwitchTileService : TileService() {
+              companion object { private const val STATE_FILE = "/data/local/proxswitch_state" }
+              override fun onTileAdded() { super.onTileAdded(); refreshTile() }
+              override fun onStartListening() { super.onStartListening(); refreshTile() }
+              override fun onClick() {
+                  super.onClick()
+                  if (isSecure) unlockAndRun { toggle() } else toggle()
+              }
+              private fun toggle() {
+                  Thread {
+                      val disabled = readState()
+                      writeState(!disabled)
+                      refreshTile()
+                  }.start()
+              }
+              private fun readState(): Boolean {
+                  val f = File(STATE_FILE)
+                  return f.exists() && f.readText().trim() == "1"
+              }
+              private fun writeState(disabled: Boolean) {
+                  val value = if (disabled) "1" else "0"
+                  execRoot("echo $value > $STATE_FILE")
+                  execRoot("chmod 644 $STATE_FILE")
+              }
+              private fun refreshTile() {
+                  val disabled = readState()
+                  tile.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+                  tile.label = if (disabled) "Prox OFF" else "Prox ON"
+                  tile.updateTile()
+              }
+              private fun execRoot(cmd: String) {
+                  try {
+                      val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+                      p.waitFor()
+                  } catch (_: Exception) {}
+              }
+          }
+          KOTLIN
 
-          if [ ! -f tile/src/main/res/drawable/ic_prox_tile.xml ]; then
-            cat > tile/src/main/res/drawable/ic_prox_tile.xml << 'XML'
-            <vector xmlns:android="http://schemas.android.com/apk/res/android"
-                android:width="24dp" android:height="24dp"
-                android:viewportWidth="24" android:viewportHeight="24"
-                android:tint="#FFFFFF">
-                <path android:fillColor="@android:color/white"
-                    android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8zM11,7h2v6h-2zM11,15h2v2h-2z"/>
-            </vector>
-            XML
-          fi
+          # tile icon
+          cat > tile/src/main/res/drawable/ic_prox_tile.xml <<'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp"
+              android:viewportWidth="24" android:viewportHeight="24"
+              android:tint="#FFFFFF">
+              <path android:fillColor="@android:color/white"
+                  android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8zM11,7h2v6h-2zM11,15h2v2h-2z"/>
+          </vector>
+          XML
 
-      # ------------------------------------------------------------
-      # 2. Create Xposed module files (with built‑in stubs – NO JAR)
-      # ------------------------------------------------------------
+      # =================================================================
+      # 2. Create Xposed module files (stubs replace the jar)
+      # =================================================================
       - name: Create Xposed module (with stubs)
         run: |
-          # Standard module source paths
+          set -e
           mkdir -p xposed/src/main/java/com/anemia004/proxswitch/xposed
           mkdir -p xposed/src/main/assets
           mkdir -p xposed/src/main/res/drawable
 
-          # === Stub library (replaces api-82.jar) ===
+          # Stub library (replaces api-82.jar)
           mkdir -p xposed/stubs/java/de/robv/android/xposed
           mkdir -p xposed/stubs/java/de/robv/android/xposed/callbacks
 
-          # IXposedHookLoadPackage stub
-          cat > xposed/stubs/java/de/robv/android/xposed/IXposedHookLoadPackage.java << 'STUB'
+          cat > xposed/stubs/java/de/robv/android/xposed/IXposedHookLoadPackage.java <<'STUB'
           package de.robv.android.xposed;
           import de.robv.android.xposed.callbacks.XC_LoadPackage;
           public interface IXposedHookLoadPackage {
@@ -180,8 +175,7 @@ jobs:
           }
           STUB
 
-          # XC_LoadPackage stub
-          cat > xposed/stubs/java/de/robv/android/xposed/callbacks/XC_LoadPackage.java << 'STUB'
+          cat > xposed/stubs/java/de/robv/android/xposed/callbacks/XC_LoadPackage.java <<'STUB'
           package de.robv.android.xposed.callbacks;
           public class XC_LoadPackage {
               public static final class LoadPackageParam {
@@ -191,8 +185,7 @@ jobs:
           }
           STUB
 
-          # XC_MethodHook stub
-          cat > xposed/stubs/java/de/robv/android/xposed/XC_MethodHook.java << 'STUB'
+          cat > xposed/stubs/java/de/robv/android/xposed/XC_MethodHook.java <<'STUB'
           package de.robv.android.xposed;
           public abstract class XC_MethodHook {
               public static class MethodHookParam {
@@ -205,10 +198,8 @@ jobs:
           }
           STUB
 
-          # XposedHelpers stub
-          cat > xposed/stubs/java/de/robv/android/xposed/XposedHelpers.java << 'STUB'
+          cat > xposed/stubs/java/de/robv/android/xposed/XposedHelpers.java <<'STUB'
           package de.robv.android.xposed;
-          import java.lang.reflect.Member;
           public class XposedHelpers {
               public static void findAndHookMethod(String className, ClassLoader classLoader,
                   String methodName, Object... parameterTypesAndCallback) {}
@@ -217,141 +208,132 @@ jobs:
           }
           STUB
 
-          # Add stubs as a compile‑only source set in build.gradle
-          if [ ! -f xposed/build.gradle ]; then
-            cat > xposed/build.gradle << 'GRADLE'
-            plugins { id 'com.android.application' }
-            android {
-                namespace 'com.anemia004.proxswitch.xposed'
-                compileSdk 34
-                defaultConfig {
-                    applicationId "com.anemia004.proxswitch.xposed"
-                    minSdk 21
-                    targetSdk 34
-                    versionCode 1
-                    versionName "1.0"
-                }
-                buildTypes { release { minifyEnabled false } }
-                sourceSets {
-                    main {
-                        java {
-                            srcDir 'stubs/java'   // compile stubs together with main
-                        }
-                    }
-                }
-            }
-            // No external dependencies at all
-            GRADLE
-          fi
+          # Xposed build.gradle
+          cat > xposed/build.gradle <<'GRADLE'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.anemia004.proxswitch.xposed'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.anemia004.proxswitch.xposed"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes { release { minifyEnabled false } }
+              sourceSets {
+                  main {
+                      java {
+                          srcDir 'stubs/java'
+                      }
+                  }
+              }
+          }
+          GRADLE
 
           # Xposed AndroidManifest.xml
-          if [ ! -f xposed/src/main/AndroidManifest.xml ]; then
-            cat > xposed/src/main/AndroidManifest.xml << 'MANIFEST'
-            <?xml version="1.0" encoding="utf-8"?>
-            <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-                package="com.anemia004.proxswitch.xposed">
-                <application
-                    android:allowBackup="true"
-                    android:icon="@drawable/ic_prox_tile"
-                    android:label="ProxSwitch Xposed"
-                    android:supportsRtl="true">
-                    <meta-data android:name="xposedmodule" android:value="true" />
-                    <meta-data android:name="xposeddescription"
-                        android:value="Proximity sensor toggle (persistent across reboots)" />
-                    <meta-data android:name="xposedminversion" android:value="82" />
-                </application>
-            </manifest>
-            MANIFEST
-          fi
+          cat > xposed/src/main/AndroidManifest.xml <<'MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.anemia004.proxswitch.xposed">
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_prox_tile"
+                  android:label="ProxSwitch Xposed"
+                  android:supportsRtl="true">
+                  <meta-data android:name="xposedmodule" android:value="true" />
+                  <meta-data android:name="xposeddescription"
+                      android:value="Proximity sensor toggle (persistent across reboots)" />
+                  <meta-data android:name="xposedminversion" android:value="82" />
+              </application>
+          </manifest>
+          MANIFEST
 
           # xposed_init
-          if [ ! -f xposed/src/main/assets/xposed_init ]; then
-            echo "com.anemia004.proxswitch.xposed.ProxSwitchHook" > xposed/src/main/assets/xposed_init
-          fi
+          echo "com.anemia004.proxswitch.xposed.ProxSwitchHook" > xposed/src/main/assets/xposed_init
 
-          # ProxSwitchHook.java (unchanged, uses stubs now)
-          if [ ! -f xposed/src/main/java/com/anemia004/proxswitch/xposed/ProxSwitchHook.java ]; then
-            cat > xposed/src/main/java/com/anemia004/proxswitch/xposed/ProxSwitchHook.java << 'JAVA'
-            package com.anemia004.proxswitch.xposed;
-            import android.hardware.Sensor;
-            import android.hardware.SensorEventListener;
-            import java.io.BufferedReader;
-            import java.io.File;
-            import java.io.FileReader;
-            import de.robv.android.xposed.IXposedHookLoadPackage;
-            import de.robv.android.xposed.XC_MethodHook;
-            import de.robv.android.xposed.XposedHelpers;
-            import de.robv.android.xposed.callbacks.XC_LoadPackage;
-            public class ProxSwitchHook implements IXposedHookLoadPackage {
-                private static final String STATE_FILE = "/data/local/proxswitch_state";
-                @Override
-                public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
-                    if (!lpparam.packageName.equals("android")) return;
-                    XposedHelpers.findAndHookMethod(
-                        "android.hardware.SystemSensorManager",
-                        lpparam.classLoader,
-                        "registerListenerImpl",
-                        SensorEventListener.class, Sensor.class, int.class,
-                        android.os.Handler.class, int.class, int.class,
-                        new XC_MethodHook() {
-                            @Override
-                            protected void beforeHookedMethod(MethodHookParam param) {
-                                if (isProxDisabled()) {
-                                    Sensor sensor = (Sensor) param.args[1];
-                                    if (sensor.getType() == Sensor.TYPE_PROXIMITY) {
-                                        param.setResult(null);
-                                    }
-                                }
-                            }
-                        });
-                }
-                private boolean isProxDisabled() {
-                    try {
-                        File f = new File(STATE_FILE);
-                        if (!f.exists()) return false;
-                        BufferedReader br = new BufferedReader(new FileReader(f));
-                        String line = br.readLine();
-                        br.close();
-                        return "1".equals(line);
-                    } catch (Exception ignored) { return false; }
-                }
-            }
-            JAVA
-          fi
+          # ProxSwitchHook.java
+          cat > xposed/src/main/java/com/anemia004/proxswitch/xposed/ProxSwitchHook.java <<'JAVA'
+          package com.anemia004.proxswitch.xposed;
+          import android.hardware.Sensor;
+          import android.hardware.SensorEventListener;
+          import java.io.BufferedReader;
+          import java.io.File;
+          import java.io.FileReader;
+          import de.robv.android.xposed.IXposedHookLoadPackage;
+          import de.robv.android.xposed.XC_MethodHook;
+          import de.robv.android.xposed.XposedHelpers;
+          import de.robv.android.xposed.callbacks.XC_LoadPackage;
+          public class ProxSwitchHook implements IXposedHookLoadPackage {
+              private static final String STATE_FILE = "/data/local/proxswitch_state";
+              @Override
+              public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
+                  if (!lpparam.packageName.equals("android")) return;
+                  XposedHelpers.findAndHookMethod(
+                      "android.hardware.SystemSensorManager",
+                      lpparam.classLoader,
+                      "registerListenerImpl",
+                      SensorEventListener.class, Sensor.class, int.class,
+                      android.os.Handler.class, int.class, int.class,
+                      new XC_MethodHook() {
+                          @Override
+                          protected void beforeHookedMethod(MethodHookParam param) {
+                              if (isProxDisabled()) {
+                                  Sensor sensor = (Sensor) param.args[1];
+                                  if (sensor.getType() == Sensor.TYPE_PROXIMITY) {
+                                      param.setResult(null);
+                                  }
+                              }
+                          }
+                      });
+              }
+              private boolean isProxDisabled() {
+                  try {
+                      File f = new File(STATE_FILE);
+                      if (!f.exists()) return false;
+                      BufferedReader br = new BufferedReader(new FileReader(f));
+                      String line = br.readLine();
+                      br.close();
+                      return "1".equals(line);
+                  } catch (Exception ignored) { return false; }
+              }
+          }
+          JAVA
 
           # Xposed icon
-          if [ ! -f xposed/src/main/res/drawable/ic_prox_tile.xml ]; then
-            cat > xposed/src/main/res/drawable/ic_prox_tile.xml << 'XML'
-            <vector xmlns:android="http://schemas.android.com/apk/res/android"
-                android:width="24dp" android:height="24dp"
-                android:viewportWidth="24" android:viewportHeight="24"
-                android:tint="#FFFFFF">
-                <path android:fillColor="@android:color/white"
-                    android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8zM11,7h2v6h-2zM11,15h2v2h-2z"/>
-            </vector>
-            XML
-          fi
+          cat > xposed/src/main/res/drawable/ic_prox_tile.xml <<'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp"
+              android:viewportWidth="24" android:viewportHeight="24"
+              android:tint="#FFFFFF">
+              <path android:fillColor="@android:color/white"
+                  android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8zM11,7h2v6h-2zM11,15h2v2h-2z"/>
+          </vector>
+          XML
 
-      # ------------------------------------------------------------
+      # =================================================================
       # 3. Root Gradle files
-      # ------------------------------------------------------------
+      # =================================================================
       - name: Ensure root Gradle files
         run: |
-          if [ ! -f settings.gradle ]; then
-            echo -e "rootProject.name = \"ProxSwitch\"\ninclude ':tile'\ninclude ':xposed'" > settings.gradle
-          fi
-          if [ ! -f build.gradle ]; then
-            cat > build.gradle << 'GRADLE'
-            plugins {
-                id 'com.android.application' version '8.2.0' apply false
-                id 'org.jetbrains.kotlin.android' version '1.9.20' apply false
-            }
-            GRADLE
-          fi
+          set -e
+          cat > settings.gradle <<'GRADLE'
+          rootProject.name = "ProxSwitch"
+          include ':tile'
+          include ':xposed'
+          GRADLE
 
-      # ------------------------------------------------------------
-      # 4. Build, sign, upload
-      # ------------------------------------------------------------
+          cat > build.gradle <<'GRADLE'
+          plugins {
+              id 'com.android.application' version '8.2.0' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.20' apply false
+          }
+          GRADLE
+
+      # =================================================================
+      # 4. Build, sign, and upload
+      # =================================================================
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
