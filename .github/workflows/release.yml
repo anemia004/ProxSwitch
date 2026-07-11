@@ -97,7 +97,7 @@ jobs:
           }
           KOTLIN
 
-          # ProxSwitchTileService.kt – CORRECTED VERSION
+          # ProxSwitchTileService.kt – FINAL WORKING VERSION (uses qsTile)
           cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt <<'KOTLIN'
           package com.anemia004.proxswitch
 
@@ -138,7 +138,6 @@ jobs:
                   Thread {
                       val currentlyDisabled = readState()
                       writeState(!currentlyDisabled)
-                      // Update the tile on the main thread
                       handler.post { refreshTile() }
                   }.start()
               }
@@ -155,7 +154,7 @@ jobs:
               }
 
               private fun refreshTile() {
-                  val t = this.tile   // explicit this to avoid scoping issues
+                  val t = qsTile                    // ← FIXED: qsTile instead of tile
                   val disabled = readState()
                   t.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
                   t.label = if (disabled) "Prox OFF" else "Prox ON"
