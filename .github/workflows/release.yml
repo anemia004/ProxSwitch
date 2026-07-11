@@ -52,7 +52,7 @@ jobs:
           }
           GRADLE
 
-          # FIXED: Added android:theme using a built‑in theme (no crash)
+          # Tile AndroidManifest.xml (with system theme, no crash)
           cat > tile/src/main/AndroidManifest.xml <<'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -86,6 +86,7 @@ jobs:
           </manifest>
           MANIFEST
 
+          # RegisterActivity.kt
           cat > tile/src/main/java/com/anemia004/proxswitch/RegisterActivity.kt <<'KOTLIN'
           package com.anemia004.proxswitch
           import android.app.Activity
@@ -98,6 +99,7 @@ jobs:
           }
           KOTLIN
 
+          # ProxSwitchTileService.kt – ROBUST VERSION (null-safe, proper threading)
           cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt <<'KOTLIN'
           package com.anemia004.proxswitch
 
@@ -136,40 +138,59 @@ jobs:
 
               private fun toggle() {
                   Thread {
-                      val currentlyDisabled = readState()
-                      writeState(!currentlyDisabled)
-                      handler.post { refreshTile() }
+                      try {
+                          val currentlyDisabled = readState()
+                          writeState(!currentlyDisabled)
+                          handler.post { refreshTile() }
+                      } catch (e: Exception) {
+                          e.printStackTrace()
+                      }
                   }.start()
               }
 
               private fun readState(): Boolean {
-                  val f = File(STATE_FILE)
-                  return f.exists() && f.readText().trim() == "1"
+                  return try {
+                      val f = File(STATE_FILE)
+                      f.exists() && f.readText().trim() == "1"
+                  } catch (e: Exception) {
+                      false
+                  }
               }
 
               private fun writeState(disabled: Boolean) {
-                  val value = if (disabled) "1" else "0"
-                  execRoot("echo $value > $STATE_FILE")
-                  execRoot("chmod 644 $STATE_FILE")
+                  try {
+                      val value = if (disabled) "1" else "0"
+                      execRoot("echo $value > $STATE_FILE")
+                      execRoot("chmod 644 $STATE_FILE")
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                  }
               }
 
               private fun refreshTile() {
-                  val t = qsTile
-                  val disabled = readState()
-                  t.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-                  t.label = if (disabled) "Prox OFF" else "Prox ON"
-                  t.updateTile()
+                  try {
+                      val t = qsTile ?: return   // safe: bail out if tile not ready
+                      val disabled = readState()
+                      t.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+                      t.label = if (disabled) "Prox OFF" else "Prox ON"
+                      t.updateTile()
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                  }
               }
 
               private fun execRoot(cmd: String) {
                   try {
                       val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
                       p.waitFor()
-                  } catch (_: Exception) {}
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                  }
               }
           }
           KOTLIN
 
+          # tile icon
           cat > tile/src/main/res/drawable/ic_prox_tile.xml <<'XML'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="24dp" android:height="24dp"
