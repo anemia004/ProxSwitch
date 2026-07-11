@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       # =================================================================
-      # 1. Create every file needed for the tile module
+      # 1. Create tile module files
       # =================================================================
       - name: Create tile module files
         run: |
@@ -97,42 +97,71 @@ jobs:
           }
           KOTLIN
 
-          # ProxSwitchTileService.kt
+          # ProxSwitchTileService.kt – CORRECTED VERSION
           cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt <<'KOTLIN'
           package com.anemia004.proxswitch
+
+          import android.os.Handler
+          import android.os.Looper
           import android.service.quicksettings.Tile
           import android.service.quicksettings.TileService
           import java.io.File
+
           class ProxSwitchTileService : TileService() {
-              companion object { private const val STATE_FILE = "/data/local/proxswitch_state" }
-              override fun onTileAdded() { super.onTileAdded(); refreshTile() }
-              override fun onStartListening() { super.onStartListening(); refreshTile() }
+
+              companion object {
+                  private const val STATE_FILE = "/data/local/proxswitch_state"
+              }
+
+              private val handler = Handler(Looper.getMainLooper())
+
+              override fun onTileAdded() {
+                  super.onTileAdded()
+                  refreshTile()
+              }
+
+              override fun onStartListening() {
+                  super.onStartListening()
+                  refreshTile()
+              }
+
               override fun onClick() {
                   super.onClick()
-                  if (isSecure) unlockAndRun { toggle() } else toggle()
+                  if (isSecure) {
+                      unlockAndRun { toggle() }
+                  } else {
+                      toggle()
+                  }
               }
+
               private fun toggle() {
                   Thread {
-                      val disabled = readState()
-                      writeState(!disabled)
-                      refreshTile()
+                      val currentlyDisabled = readState()
+                      writeState(!currentlyDisabled)
+                      // Update the tile on the main thread
+                      handler.post { refreshTile() }
                   }.start()
               }
+
               private fun readState(): Boolean {
                   val f = File(STATE_FILE)
                   return f.exists() && f.readText().trim() == "1"
               }
+
               private fun writeState(disabled: Boolean) {
                   val value = if (disabled) "1" else "0"
                   execRoot("echo $value > $STATE_FILE")
                   execRoot("chmod 644 $STATE_FILE")
               }
+
               private fun refreshTile() {
+                  val t = this.tile   // explicit this to avoid scoping issues
                   val disabled = readState()
-                  tile.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-                  tile.label = if (disabled) "Prox OFF" else "Prox ON"
-                  tile.updateTile()
+                  t.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+                  t.label = if (disabled) "Prox OFF" else "Prox ON"
+                  t.updateTile()
               }
+
               private fun execRoot(cmd: String) {
                   try {
                       val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
@@ -154,7 +183,7 @@ jobs:
           XML
 
       # =================================================================
-      # 2. Create Xposed module files (stubs replace the jar)
+      # 2. Create Xposed module files (with stubs – NO JAR)
       # =================================================================
       - name: Create Xposed module (with stubs)
         run: |
@@ -313,7 +342,7 @@ jobs:
           XML
 
       # =================================================================
-      # 3. Root Gradle files (WITH repositories for modules)
+      # 3. Root Gradle files (WITH pluginManagement and dependencyResolution)
       # =================================================================
       - name: Ensure root Gradle files
         run: |
