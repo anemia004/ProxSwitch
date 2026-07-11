@@ -23,7 +23,6 @@ jobs:
           mkdir -p tile/src/main/java/com/anemia004/proxswitch
           mkdir -p tile/src/main/res/drawable
 
-          # tile/build.gradle
           cat > tile/build.gradle <<'GRADLE'
           plugins {
               id 'com.android.application'
@@ -51,7 +50,6 @@ jobs:
           }
           GRADLE
 
-          # tile/src/main/AndroidManifest.xml
           cat > tile/src/main/AndroidManifest.xml <<'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -84,7 +82,6 @@ jobs:
           </manifest>
           MANIFEST
 
-          # RegisterActivity.kt
           cat > tile/src/main/java/com/anemia004/proxswitch/RegisterActivity.kt <<'KOTLIN'
           package com.anemia004.proxswitch
           import android.app.Activity
@@ -97,7 +94,6 @@ jobs:
           }
           KOTLIN
 
-          # ProxSwitchTileService.kt – FINAL WORKING VERSION (uses qsTile)
           cat > tile/src/main/java/com/anemia004/proxswitch/ProxSwitchTileService.kt <<'KOTLIN'
           package com.anemia004.proxswitch
 
@@ -154,7 +150,7 @@ jobs:
               }
 
               private fun refreshTile() {
-                  val t = qsTile                    // ← FIXED: qsTile instead of tile
+                  val t = qsTile
                   val disabled = readState()
                   t.state = if (disabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
                   t.label = if (disabled) "Prox OFF" else "Prox ON"
@@ -170,7 +166,6 @@ jobs:
           }
           KOTLIN
 
-          # tile icon
           cat > tile/src/main/res/drawable/ic_prox_tile.xml <<'XML'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="24dp" android:height="24dp"
@@ -191,7 +186,6 @@ jobs:
           mkdir -p xposed/src/main/assets
           mkdir -p xposed/src/main/res/drawable
 
-          # Stub library (replaces api-82.jar)
           mkdir -p xposed/stubs/java/de/robv/android/xposed
           mkdir -p xposed/stubs/java/de/robv/android/xposed/callbacks
 
@@ -236,7 +230,6 @@ jobs:
           }
           STUB
 
-          # Xposed build.gradle
           cat > xposed/build.gradle <<'GRADLE'
           plugins { id 'com.android.application' }
           android {
@@ -260,7 +253,6 @@ jobs:
           }
           GRADLE
 
-          # Xposed AndroidManifest.xml
           cat > xposed/src/main/AndroidManifest.xml <<'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -278,10 +270,8 @@ jobs:
           </manifest>
           MANIFEST
 
-          # xposed_init
           echo "com.anemia004.proxswitch.xposed.ProxSwitchHook" > xposed/src/main/assets/xposed_init
 
-          # ProxSwitchHook.java
           cat > xposed/src/main/java/com/anemia004/proxswitch/xposed/ProxSwitchHook.java <<'JAVA'
           package com.anemia004.proxswitch.xposed;
           import android.hardware.Sensor;
@@ -329,7 +319,6 @@ jobs:
           }
           JAVA
 
-          # Xposed icon
           cat > xposed/src/main/res/drawable/ic_prox_tile.xml <<'XML'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="24dp" android:height="24dp"
@@ -341,7 +330,7 @@ jobs:
           XML
 
       # =================================================================
-      # 3. Root Gradle files (WITH pluginManagement and dependencyResolution)
+      # 3. Root Gradle files
       # =================================================================
       - name: Ensure root Gradle files
         run: |
@@ -402,31 +391,48 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
 
-      - name: Sign Tile APK
+      # ----- NEW: Verify the keystore and password before signing -----
+      - name: Verify keystore
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "Checking keystore validity..."
+          keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" || {
+            echo "KEYSTORE VERIFICATION FAILED – Password or keystore is invalid."
+            exit 1
+          }
+          echo "Keystore verified OK."
+
+      # ----- Write passwords to files for safe signing -----
+      - name: Prepare signing files
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          printf "%s" "$KEYSTORE_PASSWORD" > storepass.txt
+          printf "%s" "$KEY_PASSWORD" > keypass.txt
+
+      - name: Sign Tile APK
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           $ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner sign \
             --ks release.keystore \
-            --ks-pass pass:$KEYSTORE_PASSWORD \
+            --ks-pass file:storepass.txt \
             --ks-key-alias $KEY_ALIAS \
-            --key-pass pass:$KEY_PASSWORD \
+            --key-pass file:keypass.txt \
             --out tile-signed.apk \
             tile/build/outputs/apk/release/tile-release-unsigned.apk
 
       - name: Sign Xposed APK
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           $ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner sign \
             --ks release.keystore \
-            --ks-pass pass:$KEYSTORE_PASSWORD \
+            --ks-pass file:storepass.txt \
             --ks-key-alias $KEY_ALIAS \
-            --key-pass pass:$KEY_PASSWORD \
+            --key-pass file:keypass.txt \
             --out xposed-signed.apk \
             xposed/build/outputs/apk/release/xposed-release-unsigned.apk
 
