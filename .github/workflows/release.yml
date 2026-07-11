@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write               # needed for creating releases
+      contents: write
 
     steps:
       - name: Checkout code
@@ -52,6 +52,7 @@ jobs:
           }
           GRADLE
 
+          # FIXED: Added android:theme using a built‑in theme (no crash)
           cat > tile/src/main/AndroidManifest.xml <<'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -60,7 +61,8 @@ jobs:
                   android:allowBackup="true"
                   android:icon="@drawable/ic_prox_tile"
                   android:label="ProxSwitch"
-                  android:supportsRtl="true">
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.Translucent.NoTitleBar">
                   <service
                       android:name=".ProxSwitchTileService"
                       android:icon="@drawable/ic_prox_tile"
@@ -365,7 +367,7 @@ jobs:
           GRADLE
 
       # =================================================================
-      # 4. Build, sign, and upload
+      # 4. Build, sign, and release
       # =================================================================
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -434,9 +436,6 @@ jobs:
             --out xposed-signed.apk \
             xposed/build/outputs/apk/release/xposed-release-unsigned.apk
 
-      # =================================================================
-      # Automatically create a Release and attach the APKs
-      # =================================================================
       - name: Create GitHub Release and upload APKs
         uses: softprops/action-gh-release@v1
         with:
@@ -451,7 +450,7 @@ jobs:
             📦 **Tile APK** – Quick Settings toggle (requires root).  
             📦 **Xposed Module APK** – Hooks into the framework to block the proximity sensor persistently.
 
-            **Compatibility:** Android 5.0+ (including Android 7), classic Xposed Framework / LSPosed.
+            **Compatibility:** Android 5.0+ (including Android 7), classic Xposed Framework.
 
             **How it works:**  
             - Tile writes `1` or `0` to `/data/local/proxswitch_state`.  
