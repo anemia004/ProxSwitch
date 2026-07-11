@@ -313,7 +313,7 @@ jobs:
           XML
 
       # =================================================================
-      # 3. Root Gradle files (WITH pluginManagement)
+      # 3. Root Gradle files (WITH repositories for modules)
       # =================================================================
       - name: Ensure root Gradle files
         run: |
@@ -324,6 +324,13 @@ jobs:
                   google()
                   mavenCentral()
                   gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
               }
           }
           rootProject.name = "ProxSwitch"
