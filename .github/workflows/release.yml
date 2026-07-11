@@ -313,12 +313,19 @@ jobs:
           XML
 
       # =================================================================
-      # 3. Root Gradle files
+      # 3. Root Gradle files (WITH pluginManagement)
       # =================================================================
       - name: Ensure root Gradle files
         run: |
           set -e
           cat > settings.gradle <<'GRADLE'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
           rootProject.name = "ProxSwitch"
           include ':tile'
           include ':xposed'
