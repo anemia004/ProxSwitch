@@ -1,4 +1,4 @@
-name: Build & Sign ProxSwitch APKs
+name: Build, Sign & Release ProxSwitch APKs
 
 on:
   push:
@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write               # needed for creating releases
 
     steps:
       - name: Checkout code
@@ -391,26 +393,22 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
 
-      # ----- NEW: Verify the keystore and password before signing -----
-      - name: Verify keystore
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        run: |
-          echo "Checking keystore validity..."
-          keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" || {
-            echo "KEYSTORE VERIFICATION FAILED – Password or keystore is invalid."
-            exit 1
-          }
-          echo "Keystore verified OK."
-
-      # ----- Write passwords to files for safe signing -----
-      - name: Prepare signing files
+      - name: Prepare password files
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           printf "%s" "$KEYSTORE_PASSWORD" > storepass.txt
           printf "%s" "$KEY_PASSWORD" > keypass.txt
+
+      - name: Verify keystore
+        run: |
+          echo "Checking keystore validity..."
+          keytool -list -keystore release.keystore -storepass:file storepass.txt || {
+            echo "KEYSTORE VERIFICATION FAILED"
+            exit 1
+          }
+          echo "Keystore verified OK."
 
       - name: Sign Tile APK
         env:
@@ -436,14 +434,37 @@ jobs:
             --out xposed-signed.apk \
             xposed/build/outputs/apk/release/xposed-release-unsigned.apk
 
-      - name: Upload Tile APK
-        uses: actions/upload-artifact@v4
+      # =================================================================
+      # Automatically create a Release and attach the APKs
+      # =================================================================
+      - name: Create GitHub Release and upload APKs
+        uses: softprops/action-gh-release@v1
         with:
-          name: ProxSwitch-Tile-signed
-          path: tile-signed.apk
+          files: |
+            tile-signed.apk
+            xposed-signed.apk
+          name: "ProxSwitch ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ProxSwitch – Xposed-powered proximity sensor toggle.
 
-      - name: Upload Xposed APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ProxSwitch-Xposed-signed
-          path: xposed-signed.apk
+            📦 **Tile APK** – Quick Settings toggle (requires root).  
+            📦 **Xposed Module APK** – Hooks into the framework to block the proximity sensor persistently.
+
+            **Compatibility:** Android 5.0+ (including Android 7), classic Xposed Framework / LSPosed.
+
+            **How it works:**  
+            - Tile writes `1` or `0` to `/data/local/proxswitch_state`.  
+            - Xposed module reads that flag and blocks `Sensor.TYPE_PROXIMITY` when disabled.  
+            - State survives reboots.
+
+            **Installation:**  
+            1. Install the Xposed module, activate in Xposed Installer, reboot.  
+            2. Install the tile app, open once, add the tile to Quick Settings.  
+            3. Tap to toggle – grant root when prompted.
+
+            Built from source on GitHub Actions. No external dependencies, no telemetry.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
